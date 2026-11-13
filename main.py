@@ -76,19 +76,20 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 # --- KOMENDA /DOWOD ---
-@bot.tree.command(name="dowod", description="Zarządzaj swoją kartą postaci lub sprawdź obywatela")
+@bot.tree.command(name="dowod", description="Zarządzaj kartami postaci lub sprawdź obywatela")
 @app_commands.choices(opcja=[
     app_commands.Choice(name="Stwórz Postać", value="stworz"),
     app_commands.Choice(name="Sprawdź Postacie", value="sprawdz"),
-    app_commands.Choice(name="Usuń Postać", value="usun"),
-    app_commands.Choice(name="Sprawdź Dowód Obywatela", value="sprawdz_innego")
+    app_commands.Choice(name="Usuń Postać", value="usun")
 ])
 async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str], obywatel: discord.Member = None):
     conn = get_db_conn(); cur = conn.cursor()
+    target_user = obywatel if obywatel else interaction.user
     
     if opcja.value == "stworz":
         cur.execute("SELECT count(*) FROM characters WHERE user_id = %s", (interaction.user.id,))
         if cur.fetchone()[0] >= 2:
+            cur.close(); cur.close(); conn.close()
             return await interaction.response.send_message("❌ Masz już limit 2 postaci!", ephemeral=True)
         
         class CreateModal(discord.ui.Modal, title="Tworzenie Postaci"):
@@ -107,31 +108,29 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
                 embed.add_field(name="Imię i Nazwisko", value=self.imie.value)
                 embed.add_field(name="Nick Roblox", value=self.roblox.value)
                 await i.response.send_message(embed=embed, ephemeral=True)
+        cur.close(); conn.close()
         await interaction.response.send_modal(CreateModal())
+        return
 
     elif opcja.value == "sprawdz":
-        cur.execute("SELECT name, roblox, origin, age, dreams FROM characters WHERE user_id = %s", (interaction.user.id,))
+        cur.execute("SELECT name, roblox, origin, age, dreams FROM characters WHERE user_id = %s", (target_user.id,))
         rows = cur.fetchall()
-        if not rows: return await interaction.response.send_message("Brak stworzonych postaci.", ephemeral=True)
-        embed = discord.Embed(title="🪪 Twoje Dowody Osobiste", color=discord.Color.blue())
+        if not rows:
+            cur.close(); conn.close()
+            return await interaction.response.send_message(f"Brak dowodów dla {target_user.display_name}.", ephemeral=True)
+        title = "🪪 Twoje Dowody Osobiste" if target_user.id == interaction.user.id else f"🪪 Dowody Osobiste: {target_user.display_name}"
+        embed = discord.Embed(title=title, color=discord.Color.blue())
         for r in rows:
             embed.add_field(name=f"👤 {r[0]}", value=f"**Roblox:** {r[1]}\n**Pochodzenie:** {r[2]}\n**Wiek:** {r[3]}\n**Marzenia:** {r[4]}", inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    elif opcja.value == "sprawdz_innego":
-        if not obywatel: return await interaction.response.send_message("❌ Musisz wskazać obywatela!", ephemeral=True)
-        cur.execute("SELECT name, roblox, origin, age, dreams FROM characters WHERE user_id = %s", (obywatel.id,))
-        rows = cur.fetchall()
-        if not rows: return await interaction.response.send_message(f"Obywatel {obywatel.mention} nie posiada żadnych postaci.", ephemeral=True)
-        embed = discord.Embed(title=f"🪪 Dowody Osobiste: {obywatel.display_name}", color=discord.Color.gold())
-        for r in rows:
-            embed.add_field(name=f"👤 {r[0]}", value=f"**Roblox:** {r[1]}\n**Pochodzenie:** {r[2]}\n**Wiek:** {r[3]}\n**Marzenia:** {r[4]}", inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        cur.close(); conn.close()
+        return await interaction.response.send_message(embed=embed, ephemeral=True)
 
     elif opcja.value == "usun":
         cur.execute("SELECT id, name FROM characters WHERE user_id = %s", (interaction.user.id,))
         rows = cur.fetchall()
-        if not rows: return await interaction.response.send_message("Nie masz postaci do usunięcia.", ephemeral=True)
+        if not rows:
+            cur.close(); conn.close()
+            return await interaction.response.send_message("Nie masz postaci do usunięcia.", ephemeral=True)
         
         class DelSelect(discord.ui.Select):
             async def callback(self, i: discord.Interaction):
@@ -146,7 +145,9 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
                 await i.response.send_modal(ReasonModal())
 
         v = discord.ui.View(); v.add_item(DelSelect(options=[discord.SelectOption(label=r[1], value=f"{r[0]}|{r[1]}") for r in rows]))
-        await interaction.response.send_message("Wybierz postać do usunięcia:", view=v, ephemeral=True)
+        cur.close(); conn.close()
+        return await interaction.response.send_message("Wybierz postać do usunięcia:", view=v, ephemeral=True)
+        
     cur.close(); conn.close()
 
 # --- KOMENDA /POJAZD ---
@@ -161,21 +162,28 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
     conn = get_db_conn(); cur = conn.cursor()
     
     if opcja.value == "list_innego":
-        if not obywatel: return await interaction.response.send_message("❌ Musisz wskazać obywatela!", ephemeral=True)
+        if not obywatel:
+            cur.close(); conn.close()
+            return await interaction.response.send_message("❌ Musisz wskazać obywatela!", ephemeral=True)
         cur.execute("SELECT id, name FROM characters WHERE user_id = %s", (obywatel.id,))
         chars = cur.fetchall()
-        if not chars: return await interaction.response.send_message(f"Obywatel {obywatel.mention} nie ma postaci ani pojazdów.", ephemeral=True)
+        if not chars:
+            cur.close(); conn.close()
+            return await interaction.response.send_message(f"Obywatel {obywatel.mention} nie ma postaci ani pojazdów.", ephemeral=True)
         embed = discord.Embed(title=f"🚘 Pojazdy Obywatela: {obywatel.display_name}", color=discord.Color.green())
         for cid, cname in chars:
             cur.execute("SELECT brand, plate, color FROM vehicles WHERE char_id = %s", (cid,))
             v_rows = cur.fetchall()
             v_txt = "\n".join([f"🚗 {v[0]} [{v[1]}] - Kolor: {v[2]}" for v in v_rows]) if v_rows else "Brak aut."
             embed.add_field(name=f"Postać: {cname}", value=v_txt, inline=False)
+        cur.close(); conn.close()
         return await interaction.response.send_message(embed=embed, ephemeral=True)
 
     cur.execute("SELECT id, name FROM characters WHERE user_id = %s", (interaction.user.id,))
     chars = cur.fetchall()
-    if not chars: return await interaction.response.send_message("Musisz najpierw stworzyć postać!", ephemeral=True)
+    if not chars:
+        cur.close(); conn.close()
+        return await interaction.response.send_message("Musisz najpierw stworzyć postać!", ephemeral=True)
 
     if opcja.value == "reg":
         class RegModal(discord.ui.Modal, title="Rejestracja Pojazdu"):
@@ -189,12 +197,15 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
         class Sel(discord.ui.Select):
             async def callback(self, i: discord.Interaction): await i.response.send_modal(RegModal(int(self.values[0])))
         v = discord.ui.View(); v.add_item(Sel(options=[discord.SelectOption(label=r[1], value=str(r[0])) for r in chars]))
-        await interaction.response.send_message("Wybierz postać dla pojazdu:", view=v, ephemeral=True)
+        cur.close(); conn.close()
+        return await interaction.response.send_message("Wybierz postać dla pojazdu:", view=v, ephemeral=True)
 
     elif opcja.value == "edit":
         cur.execute("SELECT v.id, v.brand, v.plate FROM vehicles v JOIN characters c ON v.char_id = c.id WHERE c.user_id = %s", (interaction.user.id,))
         vehs = cur.fetchall()
-        if not vehs: return await interaction.response.send_message("Nie masz aut do edycji.", ephemeral=True)
+        if not vehs:
+            cur.close(); conn.close()
+            return await interaction.response.send_message("Nie masz aut do edycji.", ephemeral=True)
         class EditModal(discord.ui.Modal, title="Zmiana danych"):
             nr = discord.ui.TextInput(label="Nowa Rejestracja", required=False); nk = discord.ui.TextInput(label="Nowy Kolor", required=False)
             def __init__(self, vid): super().__init__(); self.vid = vid
@@ -207,7 +218,8 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
         class EditSel(discord.ui.Select):
             async def callback(self, i: discord.Interaction): await i.response.send_modal(EditModal(int(self.values[0])))
         v = discord.ui.View(); v.add_item(EditSel(options=[discord.SelectOption(label=f"{r[1]} ({r[2]})", value=str(r[0])) for r in vehs]))
-        await interaction.response.send_message("Wybierz auto:", view=v, ephemeral=True)
+        cur.close(); conn.close()
+        return await interaction.response.send_message("Wybierz auto:", view=v, ephemeral=True)
 
     elif opcja.value == "list":
         embed = discord.Embed(title="🚘 Twoje Pojazdy", color=discord.Color.blue())
@@ -216,7 +228,9 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
             v_rows = cur.fetchall()
             v_txt = "\n".join([f"🚗 {v[0]} [{v[1]}] - Kolor: {v[2]}" for v in v_rows]) if v_rows else "Brak zarejestrowanych aut."
             embed.add_field(name=f"Postać: {cname}", value=v_txt, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        cur.close(); conn.close()
+        return await interaction.response.send_message(embed=embed, ephemeral=True)
+        
     cur.close(); conn.close()
 
 # --- POZOSTAŁE KOMENDY ---
