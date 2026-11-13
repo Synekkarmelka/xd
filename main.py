@@ -76,20 +76,27 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 # --- KOMENDA /DOWOD ---
-@bot.tree.command(name="dowod", description="Zarządzaj kartami postaci lub sprawdź obywatela")
+@bot.tree.command(name="dowod", description="Zarządzaj kartami postaci")
 @app_commands.choices(opcja=[
     app_commands.Choice(name="Stwórz Postać", value="stworz"),
     app_commands.Choice(name="Sprawdź Postacie", value="sprawdz"),
-    app_commands.Choice(name="Usuń Postać", value="usun")
+    app_commands.Choice(name="Usuń Postać", value="usun"),
+    app_commands.Choice(name="Sprawdź Postacie Obywatela", value="sprawdz_innego")
 ])
 async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str], obywatel: discord.Member = None):
     conn = get_db_conn(); cur = conn.cursor()
-    target_user = obywatel if obywatel else interaction.user
+    
+    # Blokada: tworzenie i usuwanie dotyczy WYŁĄCZNIE osoby wpisującej komendę
+    if opcja.value in ["stworz", "usun"] and obywatel is not None:
+        cur.close(); conn.close()
+        return await interaction.response.send_message("❌ Ta opcja dotyczy wyłącznie Ciebie! Nie możesz wybrać innego obywatela.", ephemeral=True)
+    
+    target_user = obywatel if (opcja.value == "sprawdz_innego" and obywatel) else interaction.user
     
     if opcja.value == "stworz":
         cur.execute("SELECT count(*) FROM characters WHERE user_id = %s", (interaction.user.id,))
         if cur.fetchone()[0] >= 2:
-            cur.close(); cur.close(); conn.close()
+            cur.close(); conn.close()
             return await interaction.response.send_message("❌ Masz już limit 2 postaci!", ephemeral=True)
         
         class CreateModal(discord.ui.Modal, title="Tworzenie Postaci"):
@@ -112,12 +119,17 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
         await interaction.response.send_modal(CreateModal())
         return
 
-    elif opcja.value == "sprawdz":
+    elif opcja.value in ["sprawdz", "sprawdz_innego"]:
+        if opcja.value == "sprawdz_innego" and not obywatel:
+            cur.close(); conn.close()
+            return await interaction.response.send_message("❌ Musisz wskazać obywatela!", ephemeral=True)
+
         cur.execute("SELECT name, roblox, origin, age, dreams FROM characters WHERE user_id = %s", (target_user.id,))
         rows = cur.fetchall()
         if not rows:
             cur.close(); conn.close()
             return await interaction.response.send_message(f"Brak dowodów dla {target_user.display_name}.", ephemeral=True)
+        
         title = "🪪 Twoje Dowody Osobiste" if target_user.id == interaction.user.id else f"🪪 Dowody Osobiste: {target_user.display_name}"
         embed = discord.Embed(title=title, color=discord.Color.blue())
         for r in rows:
@@ -151,7 +163,7 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
     cur.close(); conn.close()
 
 # --- KOMENDA /POJAZD ---
-@bot.tree.command(name="pojazd", description="Zarządzaj pojazdami lub sprawdź auto obywatela")
+@bot.tree.command(name="pojazd", description="Zarządzaj pojazdami")
 @app_commands.choices(opcja=[
     app_commands.Choice(name="Rejestruj Pojazd", value="reg"),
     app_commands.Choice(name="Zmień Rejestracje/Kolor", value="edit"),
@@ -161,6 +173,11 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
 async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[str], obywatel: discord.Member = None):
     conn = get_db_conn(); cur = conn.cursor()
     
+    # Blokada: rejestracja, edycja i własna lista dotyczą WYŁĄCZNIE użytkownika
+    if opcja.value in ["reg", "edit", "list"] and obywatel is not None:
+        cur.close(); conn.close()
+        return await interaction.response.send_message("❌ Ta opcja dotyczy wyłącznie Twoich pojazdów! Nie możesz wybrać innego obywatela.", ephemeral=True)
+
     if opcja.value == "list_innego":
         if not obywatel:
             cur.close(); conn.close()
