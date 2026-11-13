@@ -4,85 +4,107 @@ from discord.ext import commands
 from datetime import datetime
 import os
 
-# Konfiguracja ID
-ROLE_ID = 1386424048220766372
-CHANNEL_ID = 1386424048270966820
+# --- KONFIGURACJA ID ---
+ID_ROLA_MANDAT = 1386424048220766372
+ID_KANAL_MANDAT = 1386424048270966820
 
-class MandatModal(discord.ui.Modal, title='🚨 Wystawianie Mandatu Karnego'):
-    # Okno prosi tylko o kwotę i powód, bo osoby wybraliśmy wcześniej
-    kwota = discord.ui.TextInput(label='💰 Kwota Mandatu (zł)', placeholder='np. 500', min_length=1, max_length=10)
-    powod = discord.ui.TextInput(label='📝 Powód Mandatu', style=discord.TextStyle.paragraph, placeholder='Opisz wykroczenie...', min_length=5)
+ID_ROLA_BAN = 1386424048220766371
+ID_KANAL_BAN = 1386424048774545418
 
-    def __init__(self, wystawiajacy: discord.Member, otrzymujacy: discord.Member):
+ID_ROLA_RP = 1386424048220766374
+ID_KANAL_RP = 1386424048774545419
+
+GIF_RP = "https://cdn.discordapp.com/attachments/1386424048774545419/1570821961087586436/standard_4.gif?ex=6af87d73&is=6af72bf3&hm=0856c9f3fc6bd2300973a112252e87a09d37e103c044071a3ee24052242905a8&"
+
+# --- MODALE (OKNA WPISYWANIA) ---
+
+class MandatModal(discord.ui.Modal, title='🚨 Wystawianie Mandatu'):
+    kwota = discord.ui.TextInput(label='Kwota Mandatu (zł)', placeholder='np. 500')
+    powod = discord.ui.TextInput(label='Powód Mandatu', style=discord.TextStyle.paragraph)
+
+    def __init__(self, wystawiajacy, otrzymujacy):
         super().__init__()
         self.wystawiajacy = wystawiajacy
         self.otrzymujacy = otrzymujacy
 
     async def on_submit(self, interaction: discord.Interaction):
-        channel = interaction.guild.get_channel(CHANNEL_ID)
-        if not channel:
-            await interaction.response.send_message("❌ Błąd: Nie odnaleziono kanału docelowego.", ephemeral=True)
-            return
-
-        # Tworzenie upiększonego Embedu
-        embed = discord.Embed(
-            title="🚨 MANDAT KARNY 🚨",
-            description=f"Zostało zarejestrowane nowe wykroczenie drogowe/miejskie.",
-            color=discord.Color.red(),
-            timestamp=datetime.now()
-        )
-        
-        embed.add_field(name="👮 Funkcjonariusz Wystawiający", value=self.wystawiajacy.mention, inline=True)
-        embed.add_field(name="👤 Obywatel Otrzymujący", value=self.otrzymujacy.mention, inline=True)
-        embed.add_field(name="💸 Kwota Mandatu", value=f"**{self.kwota.value} zł**", inline=False)
+        channel = interaction.guild.get_channel(ID_KANAL_MANDAT)
+        embed = discord.Embed(title="🚨 Mandat Karny", color=discord.Color.red(), timestamp=datetime.now())
+        embed.add_field(name="👮 Funkcjonariusz", value=self.wystawiajacy.mention, inline=True)
+        embed.add_field(name="👤 Obywatel", value=self.otrzymujacy.mention, inline=True)
+        embed.add_field(name="💸 Kwota", value=f"**{self.kwota.value} zł**", inline=False)
         embed.add_field(name="📄 Powód", value=f"```{self.powod.value}```", inline=False)
-        
         embed.set_footer(text="Komenda Stołeczna Policji")
-        # Opcjonalnie: możesz dodać miniaturę (np. logo policji), jeśli masz link
-        # embed.set_thumbnail(url="LINK_DO_OBRAZKA")
-
-        # Wysyłka na kanał z prawdziwym pingiem w treści wiadomości
         await channel.send(content=f"Otrzymano mandat: {self.otrzymujacy.mention}", embed=embed)
-        
-        await interaction.response.send_message(f"✅ Mandat dla {self.otrzymujacy.display_name} został wysłany na kanał.", ephemeral=True)
+        await interaction.response.send_message("✅ Mandat został wystawiony.", ephemeral=True)
 
-class Bot(commands.Bot):
+class BanModal(discord.ui.Modal, title='🔨 System Kar - Blokady'):
+    nick_roblox = discord.ui.TextInput(label='Komu wystawiasz (Nick Roblox)', placeholder='Wpisz nick z gry...')
+    za_co = discord.ui.TextInput(label='Za co?', style=discord.TextStyle.paragraph)
+    ile_dni = discord.ui.TextInput(label='Ile dni?', placeholder='np. 7 / Na zawsze')
+    dowody = discord.ui.TextInput(label='Dowody (Tak/Nie)', placeholder='Wpisz Tak lub Nie', required=False)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        channel = interaction.guild.get_channel(ID_KANAL_BAN)
+        embed = discord.Embed(title="🔨 Nowa Blokada", color=discord.Color.dark_red(), timestamp=datetime.now())
+        embed.add_field(name="👤 Nick Roblox", value=f"**{self.nick_roblox.value}**", inline=False)
+        embed.add_field(name="👮 Wystawił", value=interaction.user.mention, inline=False)
+        embed.add_field(name="📝 Powód", value=f"```{self.za_co.value}```", inline=False)
+        embed.add_field(name="⏳ Czas blokady", value=self.ile_dni.value, inline=True)
+        embed.add_field(name="📸 Dowody", value=self.dowody.value or "Brak danych", inline=True)
+        embed.set_footer(text="System Administracyjny VesperRP")
+        await channel.send(embed=embed)
+        await interaction.response.send_message("✅ Ban został zarejestrowany.", ephemeral=True)
+
+class StartRpModal(discord.ui.Modal, title='🎮 Formularz Startu RP'):
+    informacje = discord.ui.TextInput(label='Informacje', style=discord.TextStyle.paragraph, placeholder='Np. Takie poranne roleplay ;]')
+
+    def __init__(self, kto_startuje):
+        super().__init__()
+        self.kto_startuje = kto_startuje
+
+    async def on_submit(self, interaction: discord.Interaction):
+        channel = interaction.guild.get_channel(ID_KANAL_RP)
+        embed = discord.Embed(title="🎭 ZAPRASZAM KAŻDEGO NA ROLEPLAY!", color=discord.Color.green())
+        embed.add_field(name="👤 Startujący", value=self.kto_startuje.mention, inline=False)
+        embed.add_field(name="🔑 KOD", value="`vesperp`", inline=True)
+        embed.add_field(name="🏘️ Nazwa", value="`VesperRP`", inline=True)
+        embed.add_field(name="ℹ️ Dodatkowe informacje", value=self.informacje.value, inline=False)
+        embed.set_image(url=GIF_RP)
+        
+        await channel.send(content="@everyone", embed=embed)
+        await interaction.response.send_message("✅ Sesja RP została wystartowana.", ephemeral=True)
+
+# --- KLASA BOTA I KOMENDY ---
+
+class MyBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
-        intents.members = True # Wymagane do poprawnego czytania listy osób
+        intents.members = True
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
         await self.tree.sync()
 
-bot = Bot()
+bot = MyBot()
 
-# 1. KOMENDA GŁÓWNA: /wystaw-mandat
-@bot.tree.command(name="wystaw-mandat", description="Wystawia mandat (Wymagana rola Policji)")
-@app_commands.describe(wystawiajacy="Wybierz funkcjonariusza", otrzymujacy="Wybierz osobę otrzymującą mandat")
+@bot.tree.command(name="wystaw-mandat", description="Wystawia mandat (Tylko Policja)")
 async def wystaw_mandat(interaction: discord.Interaction, wystawiajacy: discord.Member, otrzymujacy: discord.Member):
-    role = interaction.guild.get_role(ROLE_ID)
-    
-    # Sprawdzenie uprawnień
-    if role not in interaction.user.roles:
-        await interaction.response.send_message("❌ Nie masz uprawnień, aby użyć tej komendy!", ephemeral=True)
-        return
-
-    # Otwarcie okna formularza
+    if interaction.guild.get_role(ID_ROLA_MANDAT) not in interaction.user.roles:
+        return await interaction.response.send_message("❌ Nie masz uprawnień do tej komendy.", ephemeral=True)
     await interaction.response.send_modal(MandatModal(wystawiajacy, otrzymujacy))
 
-# 2. KOMENDA DODATKOWA: /pomoc-policja
-@bot.tree.command(name="pomoc-policja", description="Wyświetla instrukcję bota")
-async def pomoc(interaction: discord.Interaction):
-    embed = discord.Embed(title="Instrukcja Systemu Mandatowego", color=discord.Color.blue())
-    embed.add_field(name="Użycie", value="/wystaw-mandat [osoba1] [osoba2]", inline=False)
-    embed.set_footer(text="System Wspomagania Policji")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+@bot.tree.command(name="ban", description="Rejestruje bana gracza")
+async def ban(interaction: discord.Interaction):
+    if interaction.guild.get_role(ID_ROLA_BAN) not in interaction.user.roles:
+        return await interaction.response.send_message("❌ Twoja ranga nie pozwala na użycie tej komendy.", ephemeral=True)
+    await interaction.response.send_modal(BanModal())
 
-# 3. KOMENDA DODATKOWA: /status
-@bot.tree.command(name="status-bota", description="Sprawdza czy systemy bota są online")
-async def status(interaction: discord.Interaction):
-    await interaction.response.send_message("✅ Systemy bota: **Online**\n🚨 Połączenie z bazą KSP: **Stabilne**", ephemeral=True)
+@bot.tree.command(name="start-rp", description="Ogłasza start sesji RP")
+async def start_rp(interaction: discord.Interaction, kto_startuje: discord.Member):
+    if interaction.guild.get_role(ID_ROLA_RP) not in interaction.user.roles:
+        return await interaction.response.send_message("❌ Nie masz uprawnień do startowania RP.", ephemeral=True)
+    await interaction.response.send_modal(StartRpModal(kto_startuje))
 
 token = os.getenv('DISCORD_TOKEN')
 bot.run(token)
