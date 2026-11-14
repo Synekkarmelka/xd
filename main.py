@@ -374,4 +374,12 @@ async def start(interaction: discord.Interaction, kto_startuje: discord.Member):
             await i.response.send_message("Wystartowano!", ephemeral=True)
     await interaction.response.send_modal(SModal())
 
+@bot.event
+async def on_ready():
+    await bot.change_presence(
+        status=discord.Status.online,
+        activity=discord.CustomActivity(name="Gram na Vesper RP")
+    )
+
+
 bot.run(os.getenv("DISCORD_TOKEN"))
