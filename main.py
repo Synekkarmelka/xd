@@ -17,12 +17,13 @@ ID_KANAL_RP = 1505624605195370521
 
 ID_KANAL_ADMIN_USUN = 1570829927375184057
 
-# NOWE KANAŁY I ROLE DOWODÓW / POJAZDÓW
 ID_KANAL_DOWOD_LOG = 1505624603949662285
 ID_KANAL_POJAZD_LOG = 1505624603949662286
 
 ID_ROLA_POSTAC_1 = 1505624602083332101
 ID_ROLA_POSTAC_2 = 1505624601965760646
+
+ID_WLASCICIEL_OGLOS = 1130375423247790162
 
 GIF_RP = "https://cdn.discordapp.com/attachments/1570060746237284486/1570862576810721280/standard_7.gif?ex=6af8a347&is=6af751c7&hm=9732ff409418a7957f1c8dd359990cb53fad60c5ab1b3776493da1b3017a8887&"
 
@@ -116,6 +117,19 @@ class MyBot(commands.Bot):
 
 bot = MyBot()
 
+# --- KOMENDA /OGLOS ---
+@bot.tree.command(name="oglos", description="Tworzy oficjalne ogłoszenie w formie embedu")
+@app_commands.describe(kanal="Kanał, na który ma trafić ogłoszenie", tresc="Treść ogłoszenia")
+async def oglos(interaction: discord.Interaction, kanal: discord.TextChannel, tresc: str):
+    if interaction.user.id != ID_WLASCICIEL_OGLOS:
+        return await interaction.response.send_message("❌ Nie masz uprawnień do użycia tej komendy.", ephemeral=True)
+    
+    embed = discord.Embed(title="📢 OGŁOSZENIE", description=tresc, color=discord.Color.gold(), timestamp=datetime.now())
+    embed.set_footer(text=f"Ogłoszenie od: {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
+    
+    await kanal.send(embed=embed)
+    await interaction.response.send_message(f"✅ Ogłoszenie zostało pomyślnie wysłane na kanał {kanal.mention}!", ephemeral=True)
+
 # --- KOMENDA /DOWOD ---
 @bot.tree.command(name="dowod", description="Zarządzaj kartami postaci")
 @app_commands.choices(opcja=[
@@ -152,10 +166,8 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
                            (i.user.id, self.imie.value, self.roblox.value, self.poch.value, self.wiek.value, self.marz.value))
                 c.commit(); cu.close(); c.close()
                 
-                # Aktualizacja ról postaci
                 await update_character_roles(i.user)
 
-                # Wysłanie embedu logów dowodu na kanał
                 log_chan = i.guild.get_channel(ID_KANAL_DOWOD_LOG)
                 if log_chan:
                     emb_log = discord.Embed(title="🪪 Nowy Dowód Osobisty", color=discord.Color.blue(), timestamp=datetime.now())
@@ -266,7 +278,6 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
                 cu.execute("INSERT INTO vehicles (char_id, brand, plate, color) VALUES (%s,%s,%s,%s)", (self.cid, self.m.value, self.r.value, self.k.value))
                 c.commit(); cu.close(); c.close()
                 
-                # Wysłanie embedu logów pojazdu na kanał
                 log_chan = i.guild.get_channel(ID_KANAL_POJAZD_LOG)
                 if log_chan:
                     emb_log = discord.Embed(title="🚘 Nowa Rejestracja Pojazdu", color=discord.Color.green(), timestamp=datetime.now())
