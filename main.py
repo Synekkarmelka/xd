@@ -16,6 +16,14 @@ ID_ROLA_RP = 1505624602125013013
 ID_KANAL_RP = 1505624605195370521
 
 ID_KANAL_ADMIN_USUN = 1570829927375184057
+
+# NOWE KANAŁY I ROLE DOWODÓW / POJAZDÓW
+ID_KANAL_DOWOD_LOG = 1505624603949662285
+ID_KANAL_POJAZD_LOG = 1505624603949662286
+
+ID_ROLA_POSTAC_1 = 1505624602083332101
+ID_ROLA_POSTAC_2 = 1505624601965760646
+
 GIF_RP = "https://cdn.discordapp.com/attachments/1570060746237284486/1570862576810721280/standard_7.gif?ex=6af8a347&is=6af751c7&hm=9732ff409418a7957f1c8dd359990cb53fad60c5ab1b3776493da1b3017a8887&"
 
 # --- POŁĄCZENIE Z BAZĄ DANYCH ---
@@ -35,6 +43,31 @@ def init_db():
     cur.close()
     conn.close()
 
+# --- FUNKCJA ZARZĄDZANIA ROLAMI POSTACI ---
+async def update_character_roles(member: discord.Member):
+    conn = get_db_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT count(*) FROM characters WHERE user_id = %s", (member.id,))
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+
+    r1 = member.guild.get_role(ID_ROLA_POSTAC_1)
+    r2 = member.guild.get_role(ID_ROLA_POSTAC_2)
+
+    try:
+        if count >= 1 and r1 and r1 not in member.roles:
+            await member.add_roles(r1)
+        elif count == 0 and r1 and r1 in member.roles:
+            await member.remove_roles(r1)
+
+        if count >= 2 and r2 and r2 not in member.roles:
+            await member.add_roles(r2)
+        elif count < 2 and r2 and r2 in member.roles:
+            await member.remove_roles(r2)
+    except:
+        pass
+
 # --- ADMIN VIEW (USUNIĘCIE POSTACI) ---
 class AdminDeleteView(discord.ui.View):
     def __init__(self, user_id, char_id, char_name):
@@ -52,6 +85,14 @@ class AdminDeleteView(discord.ui.View):
         cur.close()
         conn.close()
         
+        try:
+            guild = interaction.guild
+            member = guild.get_member(self.user_id) or await guild.fetch_member(self.user_id)
+            if member:
+                await update_character_roles(member)
+        except:
+            pass
+
         user = await interaction.client.fetch_user(self.user_id)
         try:
             await user.send(f"✅ Twój wniosek o usunięcie postaci **{self.char_name}** został zaakceptowany przez {interaction.user.display_name}. Możesz stworzyć nową postać.")
@@ -86,8 +127,7 @@ bot = MyBot()
 async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str], obywatel: discord.Member = None):
     conn = get_db_conn(); cur = conn.cursor()
     
-    # Blokada: tworzenie i usuwanie dotyczy WYŁĄCZNIE osoby wpisującej komendę
-    if opcja.value in ["stworz", "usun"] and obywatel is not None:
+    if opcja.value in ["stworz", "sprawdz", "usun"] and obywatel is not None:
         cur.close(); conn.close()
         return await interaction.response.send_message("❌ Ta opcja dotyczy wyłącznie Ciebie! Nie możesz wybrać innego obywatela.", ephemeral=True)
     
@@ -111,6 +151,22 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
                 cu.execute("INSERT INTO characters (user_id, name, roblox, origin, age, dreams) VALUES (%s,%s,%s,%s,%s,%s)",
                            (i.user.id, self.imie.value, self.roblox.value, self.poch.value, self.wiek.value, self.marz.value))
                 c.commit(); cu.close(); c.close()
+                
+                # Aktualizacja ról postaci
+                await update_character_roles(i.user)
+
+                # Wysłanie embedu logów dowodu na kanał
+                log_chan = i.guild.get_channel(ID_KANAL_DOWOD_LOG)
+                if log_chan:
+                    emb_log = discord.Embed(title="🪪 Nowy Dowód Osobisty", color=discord.Color.blue(), timestamp=datetime.now())
+                    emb_log.add_field(name="Obywatel", value=i.user.mention, inline=False)
+                    emb_log.add_field(name="Imię i Nazwisko", value=self.imie.value, inline=True)
+                    emb_log.add_field(name="Nick Roblox", value=self.roblox.value, inline=True)
+                    emb_log.add_field(name="Pochodzenie", value=self.poch.value, inline=True)
+                    emb_log.add_field(name="Wiek", value=self.wiek.value, inline=True)
+                    emb_log.add_field(name="Marzenia", value=self.marz.value, inline=False)
+                    await log_chan.send(embed=emb_log)
+
                 embed = discord.Embed(title="✅ Postać Stworzona", color=discord.Color.blue())
                 embed.add_field(name="Imię i Nazwisko", value=self.imie.value)
                 embed.add_field(name="Nick Roblox", value=self.roblox.value)
@@ -173,7 +229,6 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
 async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[str], obywatel: discord.Member = None):
     conn = get_db_conn(); cur = conn.cursor()
     
-    # Blokada: rejestracja, edycja i własna lista dotyczą WYŁĄCZNIE użytkownika
     if opcja.value in ["reg", "edit", "list"] and obywatel is not None:
         cur.close(); conn.close()
         return await interaction.response.send_message("❌ Ta opcja dotyczy wyłącznie Twoich pojazdów! Nie możesz wybrać innego obywatela.", ephemeral=True)
@@ -205,15 +260,30 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
     if opcja.value == "reg":
         class RegModal(discord.ui.Modal, title="Rejestracja Pojazdu"):
             m = discord.ui.TextInput(label="Marka"); r = discord.ui.TextInput(label="Rejestracja"); k = discord.ui.TextInput(label="Kolor")
-            def __init__(self, cid): super().__init__(); self.cid = cid
+            def __init__(self, cid, cname): super().__init__(); self.cid = cid; self.cname = cname
             async def on_submit(self, i: discord.Interaction):
                 c = get_db_conn(); cu = c.cursor()
                 cu.execute("INSERT INTO vehicles (char_id, brand, plate, color) VALUES (%s,%s,%s,%s)", (self.cid, self.m.value, self.r.value, self.k.value))
                 c.commit(); cu.close(); c.close()
+                
+                # Wysłanie embedu logów pojazdu na kanał
+                log_chan = i.guild.get_channel(ID_KANAL_POJAZD_LOG)
+                if log_chan:
+                    emb_log = discord.Embed(title="🚘 Nowa Rejestracja Pojazdu", color=discord.Color.green(), timestamp=datetime.now())
+                    emb_log.add_field(name="Właściciel", value=i.user.mention, inline=False)
+                    emb_log.add_field(name="Postać", value=self.cname, inline=True)
+                    emb_log.add_field(name="Marka", value=self.m.value, inline=True)
+                    emb_log.add_field(name="Rejestracja", value=self.r.value, inline=True)
+                    emb_log.add_field(name="Kolor", value=self.k.value, inline=True)
+                    await log_chan.send(embed=emb_log)
+
                 await i.response.send_message(f"✅ Zarejestrowano {self.m.value}!", ephemeral=True)
+                
         class Sel(discord.ui.Select):
-            async def callback(self, i: discord.Interaction): await i.response.send_modal(RegModal(int(self.values[0])))
-        v = discord.ui.View(); v.add_item(Sel(options=[discord.SelectOption(label=r[1], value=str(r[0])) for r in chars]))
+            async def callback(self, i: discord.Interaction):
+                cid, cname = self.values[0].split("|")
+                await i.response.send_modal(RegModal(int(cid), cname))
+        v = discord.ui.View(); v.add_item(Sel(options=[discord.SelectOption(label=r[1], value=f"{r[0]}|{r[1]}") for r in chars]))
         cur.close(); conn.close()
         return await interaction.response.send_message("Wybierz postać dla pojazdu:", view=v, ephemeral=True)
 
