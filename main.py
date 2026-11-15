@@ -327,19 +327,19 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
     cur.close(); conn.close()
 
 # --- POZOSTAŁE KOMENDY ---
-@bot.tree.command(name="wystaw-mandat")
-async def mandat(interaction: discord.Interaction, wystawiajacy: discord.Member, otrzymujacy: discord.Member):
-    if interaction.guild.get_role(ID_ROLA_MANDAT) not in interaction.user.roles: return await interaction.response.send_message("Brak rangi.", ephemeral=True)
-    class MModal(discord.ui.Modal, title="Mandat"):
+@bot.tree.command(name="wystaw-")
+async def (interaction: discord.Interaction, wystawiajacy: discord.Member, otrzymujacy: discord.Member):
+    if interaction.guild.get_role(ID_ROLA_) not in interaction.user.roles: return await interaction.response.send_message("Brak rangi.", ephemeral=True)
+    class MModal(discord.ui.Modal, title=""):
         k = discord.ui.TextInput(label="Kwota"); p = discord.ui.TextInput(label="Powód", style=discord.TextStyle.paragraph)
         async def on_submit(self, i: discord.Interaction):
-            e = discord.Embed(title="<a:Alert:1571612218473058444> Mandat Karny", color=discord.Color.red(), timestamp=datetime.now())
+            e = discord.Embed(title="<a:Alert:1571612218473058444>  Karny", color=discord.Color.red(), timestamp=datetime.now())
             e.add_field(name="<a:Policjant:1571615075649978378> Funkcjonariusz", value=wystawiajacy.mention, inline=True)
             e.add_field(name="<a:Poor:1571615072051003633> Obywatel", value=otrzymujacy.mention, inline=True)
             e.add_field(name="<a:kasa:1571615073976324196> Kwota", value=f"{self.k.value} zł", inline=False)
-            e.add_field(name="<a:kekw:1571612216665317528> Powód", value=f"```{self.p.value}```", inline=False)
+            e.add_field(name="<:kekw:1571612216665317528> Powód", value=f"```{self.p.value}```", inline=False)
             e.set_footer(text="Komenda Stołeczna Policji")
-            await i.guild.get_channel(ID_KANAL_MANDAT).send(content=f"{otrzymujacy.mention}", embed=e)
+            await i.guild.get_channel(ID_KANAL_).send(content=f"{otrzymujacy.mention}", embed=e)
             await i.response.send_message("Wysłano.", ephemeral=True)
     await interaction.response.send_modal(MModal())
 
