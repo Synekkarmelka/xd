@@ -12,9 +12,6 @@ ID_KANAL_MANDAT = 1505624603949662287
 ID_ROLA_BAN = 1505624602125013018
 ID_KANAL_BAN = 1505624606831022156
 
-ID_ROLA_RP = 1505624602125013013
-ID_KANAL_RP = 1505624605195370521
-
 ID_KANAL_ADMIN_USUN = 1570829927375184057
 
 ID_KANAL_DOWOD_LOG = 1505624603949662285
@@ -24,8 +21,6 @@ ID_ROLA_POSTAC_1 = 1505624602083332101
 ID_ROLA_POSTAC_2 = 1505624601965760646
 
 ID_WLASCICIEL_OGLOS = 1130375423247790162
-
-GIF_RP = "https://cdn.discordapp.com/attachments/1570060746237284486/1570862576810721280/standard_7.gif?ex=6af8a347&is=6af751c7&hm=9732ff409418a7957f1c8dd359990cb53fad60c5ab1b3776493da1b3017a8887&"
 
 # --- POŁĄCZENIE Z BAZĄ DANYCH ---
 def get_db_conn():
@@ -360,26 +355,11 @@ async def ban(interaction: discord.Interaction):
             await i_b.response.send_message("Zbanowano.", ephemeral=True)
     await interaction.response.send_modal(BModal())
 
-@bot.tree.command(name="start-rp")
-async def start(interaction: discord.Interaction, kto_startuje: discord.Member):
-    if interaction.guild.get_role(ID_ROLA_RP) not in interaction.user.roles: return await interaction.response.send_message("Brak rangi.", ephemeral=True)
-    class SModal(discord.ui.Modal, title="Start RP"):
-        inf = discord.ui.TextInput(label="Info")
-        async def on_submit(self, i: discord.Interaction):
-            e = discord.Embed(title="🎭 ZAPRASZAM KAŻDEGO NA ROLEPLAY!", color=discord.Color.green())
-            e.add_field(name="👤 Startujący", value=kto_startuje.mention); e.add_field(name="🔑 KOD", value="`vesperp`")
-            e.add_field(name="🏘️ Nazwa", value="`VesperRP`")
-            e.add_field(name="ℹ️ Info", value=self.inf.value); e.set_image(url=GIF_RP)
-            await i.guild.get_channel(ID_KANAL_RP).send(content="@everyone", embed=e)
-            await i.response.send_message("Wystartowano!", ephemeral=True)
-    await interaction.response.send_modal(SModal())
-
 @bot.event
 async def on_ready():
     await bot.change_presence(
         status=discord.Status.online,
         activity=discord.CustomActivity(name="Gram na Vesper RP")
     )
-
 
 bot.run(os.getenv("DISCORD_TOKEN"))
