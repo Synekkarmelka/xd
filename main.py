@@ -337,7 +337,7 @@ async def (interaction: discord.Interaction, wystawiajacy: discord.Member, otrzy
             e.add_field(name="<a:Policjant:1571615075649978378> Funkcjonariusz", value=wystawiajacy.mention, inline=True)
             e.add_field(name="<a:Poor:1571615072051003633> Obywatel", value=otrzymujacy.mention, inline=True)
             e.add_field(name="<a:kasa:1571615073976324196> Kwota", value=f"{self.k.value} zł", inline=False)
-            e.add_field(name="<:kekw:1571612216665317528> Powód", value=f"```{self.p.value}```", inline=False)
+            e.add_field(name="<:ez:1571612172734169178> Powód", value=f"```{self.p.value}```", inline=False)
             e.set_footer(text="Komenda Stołeczna Policji")
             await i.guild.get_channel(ID_KANAL_).send(content=f"{otrzymujacy.mention}", embed=e)
             await i.response.send_message("Wysłano.", ephemeral=True)
