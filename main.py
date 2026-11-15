@@ -119,7 +119,7 @@ async def oglos(interaction: discord.Interaction, kanal: discord.TextChannel, tr
     if interaction.user.id != ID_WLASCICIEL_OGLOS:
         return await interaction.response.send_message("❌ Nie masz uprawnień do użycia tej komendy.", ephemeral=True)
     
-    embed = discord.Embed(title="📢 OGŁOSZENIE", description=tresc, color=discord.Color.gold(), timestamp=datetime.now())
+    embed = discord.Embed(title="<a:alert:1571612218473058444> OGŁOSZENIE", description=tresc, color=discord.Color.gold(), timestamp=datetime.now())
     embed.set_footer(text=f"Ogłoszenie od: {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
     
     await kanal.send(embed=embed)
