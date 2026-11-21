@@ -8,123 +8,82 @@ import psycopg2
 # --- KONFIGURACJA ID ---
 ID_ROLA_MANDAT = 1505624602083332100
 ID_KANAL_MANDAT = 1505624603949662287
+EMOJI_KASA = "<a:kasa:1571615073976324196>"
 
 ID_ROLA_BAN = 1505624602125013018
 ID_KANAL_BAN = 1505624606831022156
-
 ID_KANAL_ADMIN_USUN = 1570829927375184057
-
 ID_KANAL_DOWOD_LOG = 1505624603949662285
 ID_KANAL_POJAZD_LOG = 1505624603949662286
-
 ID_ROLA_POSTAC_1 = 1505624602083332101
 ID_ROLA_POSTAC_2 = 1505624601965760646
 
-ID_WLASCICIEL_OGLOS = 1130375423247790162,1384107274754199573
+# Lista ID uprawnionych do ogłoszeń
+ID_WLASCICIEL_OGLOS = [1130375423247790162, 1384107274754199573]
 
 # --- POŁĄCZENIE Z BAZĄ DANYCH ---
 def get_db_conn():
     return psycopg2.connect(os.getenv("DATABASE_URL"))
 
 def init_db():
-    conn = get_db_conn()
-    cur = conn.cursor()
-    cur.execute('''CREATE TABLE IF NOT EXISTS characters (
-        id SERIAL PRIMARY KEY, user_id BIGINT, name TEXT, roblox TEXT, 
-        origin TEXT, age TEXT, dreams TEXT)''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS vehicles (
-        id SERIAL PRIMARY KEY, char_id INTEGER REFERENCES characters(id) ON DELETE CASCADE, 
-        brand TEXT, plate TEXT, color TEXT)''')
-    conn.commit()
-    cur.close()
-    conn.close()
+    conn = get_db_conn(); cur = conn.cursor()
+    cur.execute('''CREATE TABLE IF NOT EXISTS characters (id SERIAL PRIMARY KEY, user_id BIGINT, name TEXT, roblox TEXT, origin TEXT, age TEXT, dreams TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS vehicles (id SERIAL PRIMARY KEY, char_id INTEGER REFERENCES characters(id) ON DELETE CASCADE, brand TEXT, plate TEXT, color TEXT)''')
+    cur.execute('''CREATE TABLE IF NOT EXISTS economy (user_id BIGINT PRIMARY KEY, wallet BIGINT DEFAULT 0, last_collect TIMESTAMP, last_work TIMESTAMP)''')
+    conn.commit(); cur.close(); conn.close()
 
 # --- FUNKCJA ZARZĄDZANIA ROLAMI POSTACI ---
 async def update_character_roles(member: discord.Member):
-    conn = get_db_conn()
-    cur = conn.cursor()
+    conn = get_db_conn(); cur = conn.cursor()
     cur.execute("SELECT count(*) FROM characters WHERE user_id = %s", (member.id,))
     count = cur.fetchone()[0]
-    cur.close()
-    conn.close()
-
-    r1 = member.guild.get_role(ID_ROLA_POSTAC_1)
-    r2 = member.guild.get_role(ID_ROLA_POSTAC_2)
-
+    cur.close(); conn.close()
+    r1 = member.guild.get_role(ID_ROLA_POSTAC_1); r2 = member.guild.get_role(ID_ROLA_POSTAC_2)
     try:
-        if count >= 1 and r1 and r1 not in member.roles:
-            await member.add_roles(r1)
-        elif count == 0 and r1 and r1 in member.roles:
-            await member.remove_roles(r1)
-
-        if count >= 2 and r2 and r2 not in member.roles:
-            await member.add_roles(r2)
-        elif count < 2 and r2 and r2 in member.roles:
-            await member.remove_roles(r2)
-    except:
-        pass
+        if count >= 1 and r1 and r1 not in member.roles: await member.add_roles(r1)
+        elif count == 0 and r1 and r1 in member.roles: await member.remove_roles(r1)
+        if count >= 2 and r2 and r2 not in member.roles: await member.add_roles(r2)
+        elif count < 2 and r2 and r2 in member.roles: await member.remove_roles(r2)
+    except: pass
 
 # --- ADMIN VIEW (USUNIĘCIE POSTACI) ---
 class AdminDeleteView(discord.ui.View):
     def __init__(self, user_id, char_id, char_name):
-        super().__init__(timeout=None)
-        self.user_id = user_id
-        self.char_id = char_id
-        self.char_name = char_name
-
+        super().__init__(timeout=None); self.user_id = user_id; self.char_id = char_id; self.char_name = char_name
     @discord.ui.button(label="Zaakceptuj", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        conn = get_db_conn()
-        cur = conn.cursor()
+        conn = get_db_conn(); cur = conn.cursor()
         cur.execute("DELETE FROM characters WHERE id = %s", (self.char_id,))
-        conn.commit()
-        cur.close()
-        conn.close()
-        
+        conn.commit(); cur.close(); conn.close()
         try:
-            guild = interaction.guild
-            member = guild.get_member(self.user_id) or await guild.fetch_member(self.user_id)
-            if member:
-                await update_character_roles(member)
-        except:
-            pass
-
+            member = interaction.guild.get_member(self.user_id) or await interaction.guild.fetch_member(self.user_id)
+            if member: await update_character_roles(member)
+        except: pass
         user = await interaction.client.fetch_user(self.user_id)
-        try:
-            await user.send(f"✅ Twój wniosek o usunięcie postaci **{self.char_name}** został zaakceptowany przez {interaction.user.display_name}. Możesz stworzyć nową postać.")
+        try: await user.send(f"✅ Twój wniosek o usunięcie postaci **{self.char_name}** został zaakceptowany.");
         except: pass
         await interaction.response.edit_message(content=f"✅ Usunięto postać **{self.char_name}**.", view=None)
-
     @discord.ui.button(label="Odrzuć", style=discord.ButtonStyle.danger)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = await interaction.client.fetch_user(self.user_id)
-        try:
-            await user.send(f"❌ Twój wniosek o usunięcie postaci **{self.char_name}** został odrzucony przez {interaction.user.display_name}.")
+        try: await user.send(f"❌ Twój wniosek o usunięcie postaci **{self.char_name}** został odrzucony.");
         except: pass
         await interaction.response.edit_message(content=f"❌ Odrzucono wniosek o usunięcie **{self.char_name}**.", view=None)
 
 class MyBot(commands.Bot):
-    def __init__(self):
-        super().__init__(command_prefix="!", intents=discord.Intents.all())
-    async def setup_hook(self):
-        init_db()
-        await self.tree.sync()
+    def __init__(self): super().__init__(command_prefix="!", intents=discord.Intents.all())
+    async def setup_hook(self): init_db(); await self.tree.sync()
 
 bot = MyBot()
 
 # --- KOMENDA /OGLOS ---
-@bot.tree.command(name="oglos", description="Tworzy oficjalne ogłoszenie w formie embedu")
-@app_commands.describe(kanal="Kanał, na który ma trafić ogłoszenie", tresc="Treść ogłoszenia")
+@bot.tree.command(name="oglos", description="Tworzy oficjalne ogłoszenie")
 async def oglos(interaction: discord.Interaction, kanal: discord.TextChannel, tresc: str):
-    if interaction.user.id != ID_WLASCICIEL_OGLOS:
+    if interaction.user.id not in ID_WLASCICIEL_OGLOS:
         return await interaction.response.send_message("❌ Nie masz uprawnień do użycia tej komendy.", ephemeral=True)
-    
     embed = discord.Embed(title="<a:alert:1571612218473058444> OGŁOSZENIE", description=tresc, color=discord.Color.gold(), timestamp=datetime.now())
     embed.set_footer(text=f"Ogłoszenie od: {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
-    
-    await kanal.send(embed=embed)
-    await interaction.response.send_message(f"✅ Ogłoszenie zostało pomyślnie wysłane na kanał {kanal.mention}!", ephemeral=True)
-
+    await kanal.send(embed=embed); await interaction.response.send_message("✅ Ogłoszenie wysłane.", ephemeral=True)
 # --- KOMENDA /DOWOD ---
 @bot.tree.command(name="dowod", description="Zarządzaj kartami postaci")
 @app_commands.choices(opcja=[
@@ -333,14 +292,19 @@ async def mandat(interaction: discord.Interaction, wystawiajacy: discord.Member,
     class MModal(discord.ui.Modal, title="Wystawianie Mandatu"):
         k = discord.ui.TextInput(label="Kwota"); p = discord.ui.TextInput(label="Powód", style=discord.TextStyle.paragraph)
         async def on_submit(self, i: discord.Interaction):
+            try: kwota_val = int(self.k.value)
+            except: return await i.response.send_message("❌ Nieprawidłowa kwota.", ephemeral=True)
+            conn = get_db_conn(); cur = conn.cursor()
+            cur.execute("INSERT INTO economy (user_id, wallet) VALUES (%s, 0) ON CONFLICT DO NOTHING", (otrzymujacy.id,))
+            cur.execute("UPDATE economy SET wallet = wallet - %s WHERE user_id = %s", (kwota_val, otrzymujacy.id))
+            conn.commit(); cur.close(); conn.close()
             e = discord.Embed(title="<a:Alert:1571612218473058444> Karny", color=discord.Color.red(), timestamp=datetime.now())
-            e.add_field(name="<a:Policjant:1571615075649978378> Funkcjonariusz", value=wystawiajacy.mention, inline=True)
-            e.add_field(name="<a:Poor:1571615072051003633> Obywatel", value=otrzymujacy.mention, inline=True)
-            e.add_field(name="<a:kasa:1571615073976324196> Kwota", value=f"{self.k.value} zł", inline=False)
-            e.add_field(name="<:ez:1571612172734169178> Powód", value=f"```{self.p.value}```", inline=False)
-            e.set_footer(text="Komenda Stołeczna Policji")
+            e.add_field(name="Funkcjonariusz", value=wystawiajacy.mention, inline=True)
+            e.add_field(name="Obywatel", value=otrzymujacy.mention, inline=True)
+            e.add_field(name="Kwota", value=f"{kwota_val} ZŁ", inline=False)
+            e.add_field(name="Powód", value=f"```{self.p.value}```", inline=False)
             await i.guild.get_channel(ID_KANAL_MANDAT).send(content=f"{otrzymujacy.mention}", embed=e)
-            await i.response.send_message("Wysłano.", ephemeral=True)
+            await i.response.send_message(f"✅ Wystawiono mandat na {kwota_val} ZŁ. Środki pobrane.", ephemeral=True)
     await interaction.response.send_modal(MModal())
 
 @bot.tree.command(name="ban")
