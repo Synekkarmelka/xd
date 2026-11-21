@@ -288,9 +288,16 @@ async def mandat(interaction: discord.Interaction, wystawiajacy: discord.Member,
     
     class MModal(discord.ui.Modal, title="Wystawianie Mandatu"):
         k = discord.ui.TextInput(label="Kwota"); p = discord.ui.TextInput(label="Powód", style=discord.TextStyle.paragraph)
-        async def on_submit(self, i: discord.Interaction):
-            try: kwota_val = int(self.k.value)
-            except: return await i.response.send_message("❌ Nieprawidłowa kwota.", ephemeral=True)
+        # Wewnątrz klasy MModal komendy /mandat:
+async def on_submit(self, i: discord.Interaction):
+    kwota = int(self.k.value)
+    conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+    cur = conn.cursor()
+    # UPSERT dla obywatela i odjęcie kasy
+    cur.execute("INSERT INTO economy (user_id, wallet) VALUES (%s, 0) ON CONFLICT DO NOTHING", (otrzymujacy.id,))
+    cur.execute("UPDATE economy SET wallet = wallet - %s WHERE user_id = %s", (kwota, otrzymujacy.id))
+    conn.commit(); cur.close(); conn.close()
+    await i.response.send_message(f"✅ Mandat {kwota} ZŁ wystawiony i pobrany z konta!")
             
             # Pobranie kasy z bazy
             conn = get_db_conn(); cur = conn.cursor()
