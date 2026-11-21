@@ -29,7 +29,8 @@ def get_db_conn():
     return psycopg2.connect(os.getenv("DATABASE_URL"))
 
 def init_db():
-    conn = get_db_conn(); cur = conn.cursor()
+    conn = get_db_conn()
+    cur = conn.cursor()
     # Tabela postaci
     cur.execute('''CREATE TABLE IF NOT EXISTS characters (
         id SERIAL PRIMARY KEY, user_id BIGINT, name TEXT, roblox TEXT, 
@@ -42,14 +43,18 @@ def init_db():
     cur.execute('''CREATE TABLE IF NOT EXISTS economy (
         user_id BIGINT PRIMARY KEY, wallet BIGINT DEFAULT 0, 
         last_collect TIMESTAMP, last_work TIMESTAMP)''')
-    conn.commit(); cur.close(); conn.close()
+    conn.commit()
+    cur.close()
+    conn.close()
 
 # --- FUNKCJA ZARZĄDZANIA ROLAMI POSTACI ---
 async def update_character_roles(member: discord.Member):
-    conn = get_db_conn(); cur = conn.cursor()
+    conn = get_db_conn()
+    cur = conn.cursor()
     cur.execute("SELECT count(*) FROM characters WHERE user_id = %s", (member.id,))
     count = cur.fetchone()[0]
-    cur.close(); conn.close()
+    cur.close()
+    conn.close()
 
     r1 = member.guild.get_role(ID_ROLA_POSTAC_1)
     r2 = member.guild.get_role(ID_ROLA_POSTAC_2)
@@ -70,28 +75,38 @@ async def update_character_roles(member: discord.Member):
 # --- ADMIN VIEW (USUNIĘCIE POSTACI) ---
 class AdminDeleteView(discord.ui.View):
     def __init__(self, user_id, char_id, char_name):
-        super().__init__(timeout=None); self.user_id = user_id; self.char_id = char_id; self.char_name = char_name
-    
+        super().__init__(timeout=None)
+        self.user_id = user_id
+        self.char_id = char_id
+        self.char_name = char_name
+
     @discord.ui.button(label="Zaakceptuj", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        conn = get_db_conn(); cur = conn.cursor()
+        conn = get_db_conn()
+        cur = conn.cursor()
         cur.execute("DELETE FROM characters WHERE id = %s", (self.char_id,))
-        conn.commit(); cur.close(); conn.close()
+        conn.commit()
+        cur.close()
+        conn.close()
         
         try:
-            member = interaction.guild.get_member(self.user_id) or await interaction.guild.fetch_member(self.user_id)
-            if member: await update_character_roles(member)
+            guild = interaction.guild
+            member = guild.get_member(self.user_id) or await guild.fetch_member(self.user_id)
+            if member:
+                await update_character_roles(member)
         except: pass
 
         user = await interaction.client.fetch_user(self.user_id)
-        try: await user.send(f"✅ Twój wniosek o usunięcie postaci **{self.char_name}** został zaakceptowany.")
+        try:
+            await user.send(f"✅ Twój wniosek o usunięcie postaci **{self.char_name}** został zaakceptowany.")
         except: pass
         await interaction.response.edit_message(content=f"✅ Usunięto postać **{self.char_name}**.", view=None)
 
     @discord.ui.button(label="Odrzuć", style=discord.ButtonStyle.danger)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = await interaction.client.fetch_user(self.user_id)
-        try: await user.send(f"❌ Twój wniosek o usunięcie postaci **{self.char_name}** został odrzucony.")
+        try:
+            await user.send(f"❌ Twój wniosek o usunięcie postaci **{self.char_name}** został odrzucony.")
         except: pass
         await interaction.response.edit_message(content=f"❌ Odrzucono wniosek o usunięcie **{self.char_name}**.", view=None)
 
@@ -105,7 +120,8 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 # --- KOMENDA /OGLOS ---
-@bot.tree.command(name="oglos", description="Tworzy oficjalne ogłoszenie")
+@bot.tree.command(name="oglos", description="Tworzy oficjalne ogłoszenie w formie embedu")
+@app_commands.describe(kanal="Kanał ogłoszeń", tresc="Treść ogłoszenia")
 async def oglos(interaction: discord.Interaction, kanal: discord.TextChannel, tresc: str):
     if interaction.user.id not in ID_WLASCICIEL_OGLOS:
         return await interaction.response.send_message("❌ Nie masz uprawnień do użycia tej komendy.", ephemeral=True)
@@ -114,7 +130,7 @@ async def oglos(interaction: discord.Interaction, kanal: discord.TextChannel, tr
     embed.set_footer(text=f"Ogłoszenie od: {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
     
     await kanal.send(embed=embed)
-    await interaction.response.send_message("✅ Ogłoszenie wysłane.", ephemeral=True)
+    await interaction.response.send_message(f"✅ Ogłoszenie wysłane na {kanal.mention}!", ephemeral=True)
 
 # --- KOMENDA /DOWOD ---
 @bot.tree.command(name="dowod", description="Zarządzaj kartami postaci")
@@ -155,11 +171,12 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
 
                 log_chan = i.guild.get_channel(ID_KANAL_DOWOD_LOG)
                 if log_chan:
-                    emb_log = discord.Embed(title="🪪 Nowy Dowód Osobisty", color=discord.Color.blue(), timestamp=datetime.now())
+                    emb_log = discord.Embed(title="🪪 Nowy Dowód", color=discord.Color.blue(), timestamp=datetime.now())
                     emb_log.add_field(name="Obywatel", value=i.user.mention, inline=False)
-                    emb_log.add_field(name="Imię i Nazwisko", value=self.imie.value, inline=True)
+                    emb_log.add_field(name="Imię", value=self.imie.value, inline=True)
                     await log_chan.send(embed=emb_log)
-                await i.response.send_message("✅ Postać stworzona.", ephemeral=True)
+
+                await i.response.send_message("✅ Postać stworzona!", ephemeral=True)
         cur.close(); conn.close()
         await interaction.response.send_modal(CreateModal())
 
@@ -172,7 +189,7 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
         
         embed = discord.Embed(title=f"🪪 Dowody: {target_user.display_name}", color=discord.Color.blue())
         for r in rows:
-            embed.add_field(name=f"👤 {r[0]}", value=f"**Roblox:** {r[1]}\n**Wiek:** {r[3]}", inline=False)
+            embed.add_field(name=f"👤 {r[0]}", value=f"**Roblox:** {r[1]}\n**Pochodzenie:** {r[2]}\n**Wiek:** {r[3]}\n**Marzenia:** {r[4]}", inline=False)
         cur.close(); conn.close()
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -181,17 +198,18 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
         rows = cur.fetchall()
         if not rows:
             cur.close(); conn.close()
-            return await interaction.response.send_message("Nie masz postaci.", ephemeral=True)
+            return await interaction.response.send_message("Nie masz postaci do usunięcia.", ephemeral=True)
         
         class DelSelect(discord.ui.Select):
             async def callback(self, i: discord.Interaction):
                 cid, cname = self.values[0].split("|")
                 class ReasonModal(discord.ui.Modal, title="Powód usunięcia"):
-                    r = discord.ui.TextInput(label="Powód")
+                    r = discord.ui.TextInput(label="Dlaczego usuwasz?")
                     async def on_submit(self, i2: discord.Interaction):
                         chan = i2.guild.get_channel(ID_KANAL_ADMIN_USUN)
-                        await chan.send(f"⚠️ Wniosek o usunięcie: {cname}", view=AdminDeleteView(i2.user.id, int(cid), cname))
-                        await i2.response.send_message("Wysłano prośbę.", ephemeral=True)
+                        await chan.send(f"⚠️ **Wniosek o usunięcie**\nGracz: {i2.user.mention}\nPostać: {cname}\nPowód: {self.r.value}", 
+                                        view=AdminDeleteView(i2.user.id, int(cid), cname))
+                        await i2.response.send_message("Wysłano prośbę do adminów.", ephemeral=True)
                 await i.response.send_modal(ReasonModal())
 
         v = discord.ui.View(); v.add_item(DelSelect(options=[discord.SelectOption(label=r[1], value=f"{r[0]}|{r[1]}") for r in rows]))
@@ -202,7 +220,7 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
 @bot.tree.command(name="pojazd", description="Zarządzaj pojazdami")
 @app_commands.choices(opcja=[
     app_commands.Choice(name="Rejestruj Pojazd", value="reg"),
-    app_commands.Choice(name="Zmień Rejestracje/Kolor", value="edit"),
+    app_commands.Choice(name="Zmień Dane", value="edit"),
     app_commands.Choice(name="Sprawdź Pojazdy", value="list"),
     app_commands.Choice(name="Sprawdź Pojazdy Obywatela", value="list_innego")
 ])
@@ -211,7 +229,7 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
     
     if opcja.value in ["reg", "edit", "list"] and obywatel is not None:
         cur.close(); conn.close()
-        return await interaction.response.send_message("❌ Ta opcja dotyczy Twoich pojazdów!", ephemeral=True)
+        return await interaction.response.send_message("❌ Ta opcja dotyczy Twoich aut!", ephemeral=True)
 
     if opcja.value == "list_innego":
         if not obywatel:
@@ -219,11 +237,11 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
             return await interaction.response.send_message("❌ Wskaż obywatela!", ephemeral=True)
         cur.execute("SELECT id, name FROM characters WHERE user_id = %s", (obywatel.id,))
         chars = cur.fetchall()
-        embed = discord.Embed(title=f"🚘 Pojazdy: {obywatel.display_name}", color=discord.Color.green())
+        embed = discord.Embed(title=f"🚘 Auta: {obywatel.display_name}", color=discord.Color.green())
         for cid, cname in chars:
             cur.execute("SELECT brand, plate, color FROM vehicles WHERE char_id = %s", (cid,))
             v_rows = cur.fetchall()
-            v_txt = "\n".join([f"🚗 {v[0]} [{v[1]}]" for v in v_rows]) or "Brak aut."
+            v_txt = "\n".join([f"🚗 {v[0]} [{v[1]}]" for v in v_rows]) if v_rows else "Brak aut."
             embed.add_field(name=f"Postać: {cname}", value=v_txt, inline=False)
         cur.close(); conn.close()
         return await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -242,15 +260,14 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
                 c = get_db_conn(); cu = c.cursor()
                 cu.execute("INSERT INTO vehicles (char_id, brand, plate, color) VALUES (%s,%s,%s,%s)", (self.cid, self.m.value, self.r.value, self.k.value))
                 c.commit(); cu.close(); c.close()
-                await i.response.send_message(f"✅ Zarejestrowano {self.m.value}.", ephemeral=True)
-        
+                await i.response.send_message(f"✅ Zarejestrowano {self.m.value}!", ephemeral=True)
         class Sel(discord.ui.Select):
             async def callback(self, i: discord.Interaction):
                 cid, cname = self.values[0].split("|")
                 await i.response.send_modal(RegModal(int(cid), cname))
         v = discord.ui.View(); v.add_item(Sel(options=[discord.SelectOption(label=r[1], value=f"{r[0]}|{r[1]}") for r in chars]))
         cur.close(); conn.close()
-        await interaction.response.send_message("Wybierz postać:", view=v, ephemeral=True)
+        await interaction.response.send_message("Wybierz postać dla auta:", view=v, ephemeral=True)
 
     elif opcja.value == "edit":
         cur.execute("SELECT v.id, v.brand, v.plate FROM vehicles v JOIN characters c ON v.char_id = c.id WHERE c.user_id = %s", (interaction.user.id,))
@@ -263,10 +280,10 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
                 if self.nr.value: cu.execute("UPDATE vehicles SET plate = %s WHERE id = %s", (self.nr.value, self.vid))
                 if self.nk.value: cu.execute("UPDATE vehicles SET color = %s WHERE id = %s", (self.nk.value, self.vid))
                 c.commit(); cu.close(); c.close()
-                await i.response.send_message("✅ Zaktualizowano.", ephemeral=True)
+                await i.response.send_message("✅ Zmieniono dane.", ephemeral=True)
         class EditSel(discord.ui.Select):
             async def callback(self, i: discord.Interaction): await i.response.send_modal(EditModal(int(self.values[0])))
-        v = discord.ui.View(); v.add_item(EditSel(options=[discord.SelectOption(label=f"{r[1]}", value=str(r[0])) for r in vehs]))
+        v = discord.ui.View(); v.add_item(EditSel(options=[discord.SelectOption(label=f"{r[1]} ({r[2]})", value=str(r[0])) for r in vehs]))
         cur.close(); conn.close()
         await interaction.response.send_message("Wybierz auto:", view=v, ephemeral=True)
 
@@ -275,7 +292,7 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
         for cid, cname in chars:
             cur.execute("SELECT brand, plate FROM vehicles WHERE char_id = %s", (cid,))
             v_rows = cur.fetchall()
-            v_txt = "\n".join([f"🚗 {v[0]} [{v[1]}]" for v in v_rows]) or "Brak aut."
+            v_txt = "\n".join([f"🚗 {v[0]} [{v[1]}]" for v in v_rows]) if v_rows else "Brak aut."
             embed.add_field(name=f"Postać: {cname}", value=v_txt, inline=False)
         cur.close(); conn.close()
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -283,23 +300,14 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
 # --- KOMENDA /MANDAT ---
 @bot.tree.command(name="mandat", description="Wystawia mandat obywatelowi")
 async def mandat(interaction: discord.Interaction, wystawiajacy: discord.Member, otrzymujacy: discord.Member):
-    if interaction.guild.get_role(ID_ROLA_MANDAT) not in interaction.user.roles: 
-        return await interaction.response.send_message("❌ Brak rangi.", ephemeral=True)
-    
+    if interaction.guild.get_role(ID_ROLA_MANDAT) not in interaction.user.roles: return await interaction.response.send_message("Brak rangi.", ephemeral=True)
     class MModal(discord.ui.Modal, title="Wystawianie Mandatu"):
         k = discord.ui.TextInput(label="Kwota"); p = discord.ui.TextInput(label="Powód", style=discord.TextStyle.paragraph)
-        # Wewnątrz klasy MModal komendy /mandat:
-async def on_submit(self, i: discord.Interaction):
-    kwota = int(self.k.value)
-    conn = psycopg2.connect(os.getenv("DATABASE_URL"))
-    cur = conn.cursor()
-    # UPSERT dla obywatela i odjęcie kasy
-    cur.execute("INSERT INTO economy (user_id, wallet) VALUES (%s, 0) ON CONFLICT DO NOTHING", (otrzymujacy.id,))
-    cur.execute("UPDATE economy SET wallet = wallet - %s WHERE user_id = %s", (kwota, otrzymujacy.id))
-    conn.commit(); cur.close(); conn.close()
-    await i.response.send_message(f"✅ Mandat {kwota} ZŁ wystawiony i pobrany z konta!")
+        async def on_submit(self, i: discord.Interaction):
+            try: kwota_val = int(self.k.value)
+            except: return await i.response.send_message("❌ Nieprawidłowa kwota.", ephemeral=True)
             
-            # Pobranie kasy z bazy
+            # Pobieranie kasy (pozwala na minus)
             conn = get_db_conn(); cur = conn.cursor()
             cur.execute("INSERT INTO economy (user_id, wallet) VALUES (%s, 0) ON CONFLICT DO NOTHING", (otrzymujacy.id,))
             cur.execute("UPDATE economy SET wallet = wallet - %s WHERE user_id = %s", (kwota_val, otrzymujacy.id))
@@ -312,7 +320,7 @@ async def on_submit(self, i: discord.Interaction):
             e.add_field(name="Powód", value=f"```{self.p.value}```", inline=False)
             e.set_footer(text="Komenda Stołeczna Policji")
             await i.guild.get_channel(ID_KANAL_MANDAT).send(content=f"{otrzymujacy.mention}", embed=e)
-            await i.response.send_message(f"✅ Wystawiono mandat na {kwota_val} ZŁ. Środki pobrane.", ephemeral=True)
+            await i.response.send_message(f"✅ Mandat {kwota_val} ZŁ wystawiony i pobrany.", ephemeral=True)
     await interaction.response.send_modal(MModal())
 
 @bot.tree.command(name="ban")
@@ -330,5 +338,6 @@ async def ban(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     await bot.change_presence(status=discord.Status.online, activity=discord.CustomActivity(name="Gram na Vesper RP"))
+    print(f"✅ Bot Synek online as {bot.user}")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
