@@ -173,7 +173,11 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
                 if log_chan:
                     emb_log = discord.Embed(title="🪪 Nowy Dowód", color=discord.Color.blue(), timestamp=datetime.now())
                     emb_log.add_field(name="Obywatel", value=i.user.mention, inline=False)
-                    emb_log.add_field(name="Imię", value=self.imie.value, inline=True)
+                    emb_log.add_field(name="Imię i nazwisko", value=self.imie.value, inline=True)
+                    emb_log.add_field(name="Nick Roblox", value=self.roblox.value, inline=True)
+                    emb_log.add_field(name="Pochodzenie", value=self.poch.value, inline=True)
+                    emb_log.add_field(name="Wiek", value=self.wiek.value, inline=True)
+                    emb_log.add_field(name="Marzenia", value=self.marz.value, inline=False)
                     await log_chan.send(embed=emb_log)
 
                 await i.response.send_message("✅ Postać stworzona!", ephemeral=True)
@@ -260,6 +264,17 @@ async def pojazd(interaction: discord.Interaction, opcja: app_commands.Choice[st
                 c = get_db_conn(); cu = c.cursor()
                 cu.execute("INSERT INTO vehicles (char_id, brand, plate, color) VALUES (%s,%s,%s,%s)", (self.cid, self.m.value, self.r.value, self.k.value))
                 c.commit(); cu.close(); c.close()
+                
+                log_chan = i.guild.get_channel(ID_KANAL_POJAZD_LOG)
+                if log_chan:
+                    emb_log = discord.Embed(title="🚘 Nowa Rejestracja Pojazdu", color=discord.Color.green(), timestamp=datetime.now())
+                    emb_log.add_field(name="Właściciel", value=i.user.mention, inline=False)
+                    emb_log.add_field(name="Postać", value=self.cname, inline=True)
+                    emb_log.add_field(name="Pojazd", value=self.m.value, inline=True)
+                    emb_log.add_field(name="Rejestracja", value=self.r.value, inline=True)
+                    emb_log.add_field(name="Kolor", value=self.k.value, inline=True)
+                    await log_chan.send(embed=emb_log)
+                
                 await i.response.send_message(f"✅ Zarejestrowano {self.m.value}!", ephemeral=True)
         class Sel(discord.ui.Select):
             async def callback(self, i: discord.Interaction):
