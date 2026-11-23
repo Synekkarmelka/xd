@@ -17,6 +17,7 @@ ID_KANAL_ADMIN_USUN = 1570829927375184057
 
 ID_KANAL_DOWOD_LOG = 1505624603949662285
 ID_KANAL_POJAZD_LOG = 1505624603949662286
+ID_KANAL_WYROK = 1505624603949662289
 
 ID_ROLA_POSTAC_1 = 1505624602083332101
 ID_ROLA_POSTAC_2 = 1505624601965760646
@@ -109,6 +110,63 @@ class AdminDeleteView(discord.ui.View):
             await user.send(f"❌ Twój wniosek o usunięcie postaci **{self.char_name}** został odrzucony.")
         except: pass
         await interaction.response.edit_message(content=f"❌ Odrzucono wniosek o usunięcie **{self.char_name}**.", view=None)
+
+# --- VIEW I EMBED DLA SYSTEMU AKTYWNOŚCI ---
+class AktywnoscView(discord.ui.View):
+    def __init__(self, sprawdzajacy: discord.Member, cel: int, notatka: str):
+        super().__init__(timeout=None)
+        self.sprawdzajacy = sprawdzajacy
+        self.cel = cel
+        self.notatka = notatka
+        self.obecni = set()
+
+    def generate_embed(self, zakonczony=False):
+        embed = discord.Embed(
+            title="🚨 CHECK AKTYWNOŚCI",
+            description="Czas na małe sprawdzenie aktywności! Kliknij zielony przycisk poniżej, żeby dać znać, że jesteś.",
+            color=discord.Color.red() if not zakonczony else discord.Color.green(),
+            timestamp=datetime.now()
+        )
+        embed.add_field(
+            name="📌 Instrukcja",
+            value="│ • Kliknij Potwierdź Obecność, aby zameldować się na liście.\n│ • Ponowne kliknięcie wycofa Twoje potwierdzenie.\n│ • Check kończy się po zamknięciu przez sprawdzającego.",
+            inline=False
+        )
+        embed.add_field(name="👤 Sprawdzający", value=self.sprawdzajacy.mention, inline=True)
+        embed.add_field(name="🎯 Cel / Wymóg", value=str(self.cel), inline=True)
+        
+        if self.notatka:
+            embed.add_field(name="📝 Notatka", value=self.notatka, inline=False)
+
+        if self.obecni:
+            confirmed_pings = ", ".join([f"<@{uid}>" for uid in self.obecni])
+            embed.add_field(name=f"👥 Potwierdzili ({len(self.obecni)})", value=confirmed_pings, inline=False)
+        else:
+            embed.add_field(name="👥 Potwierdzili (0)", value="Nikt jeszcze nie potwierdził obecności.", inline=False)
+
+        if zakonczony:
+            embed.set_footer(text=f"🏁 Check zakończony • potwierdziło {len(self.obecni)} osób")
+        else:
+            embed.set_footer(text="PrimeCity RP • System Aktywności")
+        return embed
+
+    @discord.ui.button(label="Potwierdź Obecność", style=discord.ButtonStyle.success, custom_id="button_potwierdz_obecnosc")
+    async def potwierdz(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id in self.obecni:
+            self.obecni.remove(interaction.user.id)
+            await interaction.response.send_message("❌ Wycofałeś swoje potwierdzenie obecności.", ephemeral=True)
+        else:
+            self.obecni.add(interaction.user.id)
+            await interaction.response.send_message("✅ Potwierdziłeś swoją obecność!", ephemeral=True)
+        await interaction.message.edit(embed=self.generate_embed(), view=self)
+
+    @discord.ui.button(label="Zakończ Check", style=discord.ButtonStyle.danger, custom_id="button_zakoncz_check")
+    async def zakoncz(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ Tylko administrator może zakończyć check!", ephemeral=True)
+        self.clear_items()
+        await interaction.response.edit_message(embed=self.generate_embed(zakonczony=True), view=self)
+        self.stop()
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -338,6 +396,58 @@ async def mandat(interaction: discord.Interaction, wystawiajacy: discord.Member,
             await i.response.send_message(f"✅ Mandat {kwota_val} ZŁ wystawiony i pobrany.", ephemeral=True)
     await interaction.response.send_modal(MModal())
 
+# --- KOMENDA /WYROK ---
+@bot.tree.command(name="wyrok", description="Wystawia oficjalny wyrok obywatelowi")
+async def wyrok(interaction: discord.Interaction, wystawiajacy: discord.Member, otrzymujacy: discord.Member):
+    if interaction.guild.get_role(ID_ROLA_MANDAT) not in interaction.user.roles: 
+        return await interaction.response.send_message("❌ Brak wymaganej rangi.", ephemeral=True)
+
+    class WyrokModal(discord.ui.Modal, title="Wystawianie Wyroku"):
+        k = discord.ui.TextInput(label="Kara Pieniężna (ZŁ)")
+        m = discord.ui.TextInput(label="Miesiące")
+        z = discord.ui.TextInput(label="Zarzuty", style=discord.TextStyle.paragraph)
+
+        async def on_submit(self, i: discord.Interaction):
+            try: kwota_val = int(self.k.value)
+            except: return await i.response.send_message("❌ Nieprawidłowa kwota kary.", ephemeral=True)
+            
+            try: miesiace_val = int(self.m.value)
+            except: return await i.response.send_message("❌ Nieprawidłowa liczba miesięcy.", ephemeral=True)
+
+            conn = get_db_conn(); cur = conn.cursor()
+            cur.execute("INSERT INTO economy (user_id, wallet) VALUES (%s, 0) ON CONFLICT DO NOTHING", (otrzymujacy.id,))
+            cur.execute("UPDATE economy SET wallet = wallet - %s WHERE user_id = %s", (kwota_val, otrzymujacy.id))
+            conn.commit(); cur.close(); conn.close()
+
+            e = discord.Embed(title="🚨 WYROK SĄDOWY / WIĘZIENNY", color=discord.Color.red(), timestamp=datetime.now())
+            e.add_field(name="Sędzia / Policjant", value=wystawiajacy.mention, inline=True)
+            e.add_field(name="Oskarżony", value=otrzymujacy.mention, inline=True)
+            e.add_field(name="Kara Pieniężna", value=f"{kwota_val:,} ZŁ".replace(",", " "), inline=True)
+            e.add_field(name="Miesiące", value=f"{miesiace_val} miesięcy", inline=True)
+            e.add_field(name="Zarzuty", value=f"```\n{self.z.value}\n```", inline=False)
+            e.set_footer(text="Komenda Stołeczna Policji")
+
+            channel = i.guild.get_channel(ID_KANAL_WYROK)
+            if channel:
+                await channel.send(content=f"{otrzymujacy.mention}", embed=e)
+                await i.response.send_message(f"✅ Wyrok dla {otrzymujacy.display_name} został poprawnie wystawiony i wysłany na {channel.mention}.", ephemeral=True)
+            else:
+                await i.response.send_message("❌ Błąd: nie znaleziono docelowego kanału dla wyroków.", ephemeral=True)
+
+    await interaction.response.send_modal(WyrokModal())
+
+# --- KOMENDA /AKTYWNOSC ---
+@bot.tree.command(name="aktywnosc", description="Rozpoczyna nowe sprawdzenie aktywności (Check)")
+@app_commands.describe(cel="Wymagana liczba osób do osiągnięcia celu", notatka="Dodatkowa notatka do checku")
+async def aktywnosc(interaction: discord.Interaction, cel: int, notatka: str = None):
+    if not interaction.user.guild_permissions.administrator:
+        return await interaction.response.send_message("❌ Ta komenda jest dostępna wyłącznie dla Administratorów.", ephemeral=True)
+
+    view = AktywnoscView(sprawdzajacy=interaction.user, cel=cel, notatka=notatka)
+    embed = view.generate_embed()
+    await interaction.response.send_message(embed=embed, view=view)
+
+# --- KOMENDA /BAN ---
 @bot.tree.command(name="ban")
 async def ban(interaction: discord.Interaction):
     if interaction.guild.get_role(ID_ROLA_BAN) not in interaction.user.roles: return await interaction.response.send_message("Brak rangi.", ephemeral=True)
