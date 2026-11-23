@@ -419,8 +419,8 @@ async def wyrok(interaction: discord.Interaction, wystawiajacy: discord.Member, 
             cur.execute("UPDATE economy SET wallet = wallet - %s WHERE user_id = %s", (kwota_val, otrzymujacy.id))
             conn.commit(); cur.close(); conn.close()
 
-            e = discord.Embed(title="🚨 WYROK SĄDOWY / WIĘZIENNY", color=discord.Color.red(), timestamp=datetime.now())
-            e.add_field(name="Sędzia / Policjant", value=wystawiajacy.mention, inline=True)
+            e = discord.Embed(title="🚨 WYROK WIĘZIENNY", color=discord.Color.red(), timestamp=datetime.now())
+            e.add_field(name="Policjant", value=wystawiajacy.mention, inline=True)
             e.add_field(name="Oskarżony", value=otrzymujacy.mention, inline=True)
             e.add_field(name="Kara Pieniężna", value=f"{kwota_val:,} ZŁ".replace(",", " "), inline=True)
             e.add_field(name="Miesiące", value=f"{miesiace_val} miesięcy", inline=True)
