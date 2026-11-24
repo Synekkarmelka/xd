@@ -4,7 +4,7 @@ from discord.ext import commands
 from datetime import datetime
 import os
 import psycopg2
-import aiohttp
+import aiohttp  # <--- TO BYŁO BRAKUJĄCE
 
 # --- KONFIGURACJA ID ---
 ID_ROLA_MANDAT = 1505624602083332100
@@ -30,24 +30,23 @@ ID_WLASCICIEL_OGLOS = [1130375423247790162, 1384107274754199573]
 async def get_roblox_avatar(roblox_input):
     async with aiohttp.ClientSession() as session:
         user_id = None
-        # Sprawdzamy czy to ID czy Nick
         if str(roblox_input).isdigit():
             user_id = roblox_input
         else:
-            # Pobieramy ID po nicku
-            url_user = f"https://users.roblox.com/v1/usernames/users"
+            url_user = "https://users.roblox.com/v1/usernames/users"
             async with session.post(url_user, json={"usernames": [roblox_input], "excludeBannedUsers": True}) as resp:
-                data = await resp.json()
-                if "data" in data and len(data["data"]) > 0:
-                    user_id = data["data"][0]["id"]
+                if resp.status == 200:
+                    data = await resp.json()
+                    if "data" in data and len(data["data"]) > 0:
+                        user_id = data["data"][0]["id"]
         
         if user_id:
-            # Pobieramy avatar po ID
             url_thumb = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={user_id}&size=150x150&format=Png"
             async with session.get(url_thumb) as resp:
-                data = await resp.json()
-                if "data" in data and data["data"]:
-                    return data["data"][0]["imageUrl"]
+                if resp.status == 200:
+                    data = await resp.json()
+                    if "data" in data and data["data"]:
+                        return data["data"][0]["imageUrl"]
     return None
 
 # --- POŁĄCZENIE Z BAZĄ DANYCH ---
@@ -216,7 +215,6 @@ async def oglos(interaction: discord.Interaction, kanal: discord.TextChannel, tr
     await interaction.response.send_message(f"✅ Ogłoszenie wysłane na {kanal.mention}!", ephemeral=True)
 
 # --- KOMENDA /DOWOD ---
-# --- KOMENDA /DOWOD ---
 @bot.tree.command(name="dowod", description="Zarządzaj kartami postaci")
 @app_commands.choices(opcja=[
     app_commands.Choice(name="Stwórz Postać", value="stworz"),
@@ -288,30 +286,6 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
             embed.add_field(name=f"👤 {r[0]}", value=f"**Roblox:** {r[1]}\n**Pochodzenie:** {r[2]}\n**Wiek:** {r[3]}\n**Marzenia:** {r[4]}", inline=False)
         cur.close(); conn.close()
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    elif opcja.value == "usun":
-        cur.execute("SELECT id, name FROM characters WHERE user_id = %s", (interaction.user.id,))
-        rows = cur.fetchall()
-        if not rows:
-            cur.close(); conn.close()
-            return await interaction.response.send_message("Nie masz postaci do usunięcia.", ephemeral=True)
-        
-        class DelSelect(discord.ui.Select):
-            async def callback(self, i: discord.Interaction):
-                cid, cname = self.values[0].split("|")
-                class ReasonModal(discord.ui.Modal, title="Powód usunięcia"):
-                    r = discord.ui.TextInput(label="Dlaczego usuwasz?")
-                    async def on_submit(self, i2: discord.Interaction):
-                        chan = i2.guild.get_channel(ID_KANAL_ADMIN_USUN)
-                        await chan.send(f"⚠️ **Wniosek o usunięcie**\nGracz: {i2.user.mention}\nPostać: {cname}\nPowód: {self.r.value}", 
-                                        view=AdminDeleteView(i2.user.id, int(cid), cname))
-                        await i2.response.send_message("Wysłano prośbę do adminów.", ephemeral=True)
-                await i.response.send_modal(ReasonModal())
-
-        v = discord.ui.View(); v.add_item(DelSelect(options=[discord.SelectOption(label=r[1], value=f"{r[0]}|{r[1]}") for r in rows]))
-        cur.close(); conn.close()
-        await interaction.response.send_message("Wybierz postać:", view=v, ephemeral=True)
-
 # --- KOMENDA /POJAZD ---
 @bot.tree.command(name="pojazd", description="Zarządzaj pojazdami")
 @app_commands.choices(opcja=[
