@@ -4,6 +4,7 @@ from discord.ext import commands
 from datetime import datetime
 import os
 import psycopg2
+import aiohttp
 
 # --- KONFIGURACJA ID ---
 ID_ROLA_MANDAT = 1505624602083332100
@@ -26,12 +27,24 @@ ID_ROLA_POSTAC_2 = 1505624601965760646
 ID_WLASCICIEL_OGLOS = [1130375423247790162, 1384107274754199573]
 
 # --- FUNKCJA POBIERANIA AVATARA ---
-async def get_roblox_avatar(roblox_id):
-    if not str(roblox_id).isdigit(): return None
+async def get_roblox_avatar(roblox_input):
     async with aiohttp.ClientSession() as session:
-        url = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={roblox_id}&size=150x150&format=Png"
-        async with session.get(url) as resp:
-            if resp.status == 200:
+        user_id = None
+        # Sprawdzamy czy to ID czy Nick
+        if str(roblox_input).isdigit():
+            user_id = roblox_input
+        else:
+            # Pobieramy ID po nicku
+            url_user = f"https://users.roblox.com/v1/usernames/users"
+            async with session.post(url_user, json={"usernames": [roblox_input], "excludeBannedUsers": True}) as resp:
+                data = await resp.json()
+                if "data" in data and len(data["data"]) > 0:
+                    user_id = data["data"][0]["id"]
+        
+        if user_id:
+            # Pobieramy avatar po ID
+            url_thumb = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={user_id}&size=150x150&format=Png"
+            async with session.get(url_thumb) as resp:
                 data = await resp.json()
                 if "data" in data and data["data"]:
                     return data["data"][0]["imageUrl"]
@@ -202,6 +215,7 @@ async def oglos(interaction: discord.Interaction, kanal: discord.TextChannel, tr
     await kanal.send(embed=embed)
     await interaction.response.send_message(f"✅ Ogłoszenie wysłane na {kanal.mention}!", ephemeral=True)
 
+# --- KOMENDA /DOWOD ---
 # --- KOMENDA /DOWOD ---
 @bot.tree.command(name="dowod", description="Zarządzaj kartami postaci")
 @app_commands.choices(opcja=[
