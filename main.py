@@ -286,6 +286,46 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
             embed.add_field(name=f"👤 {r[0]}", value=f"**Roblox:** {r[1]}\n**Pochodzenie:** {r[2]}\n**Wiek:** {r[3]}\n**Marzenia:** {r[4]}", inline=False)
         cur.close(); conn.close()
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    elif opcja.value == "usun":
+        cur.execute("SELECT id, name FROM characters WHERE user_id = %s", (interaction.user.id,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        
+        if not rows:
+            return await interaction.response.send_message("Nie masz postaci do usunięcia.", ephemeral=True)
+        
+        class DelSelect(discord.ui.Select):
+            def __init__(self, options):
+                super().__init__(placeholder="Wybierz postać do usunięcia...", options=options)
+
+            async def callback(self, i: discord.Interaction):
+                cid, cname = self.values[0].split("|")
+
+                class ReasonModal(discord.ui.Modal, title="Powód usunięcia"):
+                    reason = discord.ui.TextInput(label="Dlaczego chcesz usunąć tę postać?", style=discord.TextStyle.paragraph, required=True)
+                    
+                    def __init__(self, char_id, char_name):
+                        super().__init__()
+                        self.char_id = char_id
+                        self.char_name = char_name
+
+                    async def on_submit(self, i2: discord.Interaction):
+                        admin_chan = i2.guild.get_channel(ID_KANAL_ADMIN_USUN)
+                        if admin_chan:
+                            msg = f"⚠️ **Wniosek o usunięcie postaci**\n**Gracz:** {i2.user.mention}\n**Postać:** {self.char_name}\n**Powód:** {self.reason.value}"
+                            await admin_chan.send(content=msg, view=AdminDeleteView(i2.user.id, self.char_id, self.char_name))
+                            await i2.response.send_message("✅ Wysłano prośbę o usunięcie postaci do administracji.", ephemeral=True)
+                        else:
+                            await i2.response.send_message("❌ Błąd: Nie znaleziono kanału dla administracji.", ephemeral=True)
+
+                await i.response.send_modal(ReasonModal(int(cid), cname))
+
+        options = [discord.SelectOption(label=r[1], value=f"{r[0]}|{r[1]}") for r in rows]
+        view = discord.ui.View()
+        view.add_item(DelSelect(options))
+        await interaction.response.send_message("Wybierz postać, którą chcesz usunąć:", view=view, ephemeral=True)
+        
 # --- KOMENDA /POJAZD ---
 @bot.tree.command(name="pojazd", description="Zarządzaj pojazdami")
 @app_commands.choices(opcja=[
