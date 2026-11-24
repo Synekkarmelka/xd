@@ -25,6 +25,18 @@ ID_ROLA_POSTAC_2 = 1505624601965760646
 # Lista ID uprawnionych do ogłoszeń
 ID_WLASCICIEL_OGLOS = [1130375423247790162, 1384107274754199573]
 
+# --- FUNKCJA POBIERANIA AVATARA ---
+async def get_roblox_avatar(roblox_id):
+    if not str(roblox_id).isdigit(): return None
+    async with aiohttp.ClientSession() as session:
+        url = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={roblox_id}&size=150x150&format=Png"
+        async with session.get(url) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                if "data" in data and data["data"]:
+                    return data["data"][0]["imageUrl"]
+    return None
+
 # --- POŁĄCZENIE Z BAZĄ DANYCH ---
 def get_db_conn():
     return psycopg2.connect(os.getenv("DATABASE_URL"))
@@ -215,7 +227,7 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
         
         class CreateModal(discord.ui.Modal, title="Tworzenie Postaci"):
             imie = discord.ui.TextInput(label="Imię I nazwisko")
-            roblox = discord.ui.TextInput(label="Nick Roblox")
+            roblox = discord.ui.TextInput(label="Nick Roblox / ID")
             poch = discord.ui.TextInput(label="Pochodzenie")
             wiek = discord.ui.TextInput(label="Wiek")
             marz = discord.ui.TextInput(label="Marzenia", style=discord.TextStyle.paragraph)
@@ -236,6 +248,11 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
                     emb_log.add_field(name="Pochodzenie", value=self.poch.value, inline=True)
                     emb_log.add_field(name="Wiek", value=self.wiek.value, inline=True)
                     emb_log.add_field(name="Marzenia", value=self.marz.value, inline=False)
+                    
+                    avatar_url = await get_roblox_avatar(self.roblox.value)
+                    if avatar_url:
+                        emb_log.set_thumbnail(url=avatar_url)
+
                     await log_chan.send(embed=emb_log)
 
                 await i.response.send_message("✅ Postać stworzona!", ephemeral=True)
@@ -251,6 +268,9 @@ async def dowod(interaction: discord.Interaction, opcja: app_commands.Choice[str
         
         embed = discord.Embed(title=f"🪪 Dowody: {target_user.display_name}", color=discord.Color.blue())
         for r in rows:
+            avatar_url = await get_roblox_avatar(r[1])
+            if avatar_url:
+                embed.set_thumbnail(url=avatar_url)
             embed.add_field(name=f"👤 {r[0]}", value=f"**Roblox:** {r[1]}\n**Pochodzenie:** {r[2]}\n**Wiek:** {r[3]}\n**Marzenia:** {r[4]}", inline=False)
         cur.close(); conn.close()
         await interaction.response.send_message(embed=embed, ephemeral=True)
