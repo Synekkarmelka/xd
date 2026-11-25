@@ -171,7 +171,7 @@ class AktywnoscView(discord.ui.View):
         if zakonczony:
             embed.set_footer(text=f"🏁 Check zakończony • potwierdziło {len(self.obecni)} osób")
         else:
-            embed.set_footer(text="PrimeCity RP • System Aktywności")
+            embed.set_footer(text="Vesper RP • System Aktywności")
         return embed
 
     @discord.ui.button(label="Potwierdź Obecność", style=discord.ButtonStyle.success, custom_id="button_potwierdz_obecnosc")
