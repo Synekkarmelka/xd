@@ -4,7 +4,7 @@ from discord.ext import commands
 from datetime import datetime
 import os
 import psycopg2
-import aiohttp  # <--- TO BYŁO BRAKUJĄCE
+import aiohttp
 
 # --- KONFIGURACJA ID ---
 ID_ROLA_MANDAT = 1505624602083332100
@@ -25,6 +25,8 @@ ID_ROLA_POSTAC_2 = 1505624601965760646
 
 # Lista ID uprawnionych do ogłoszeń
 ID_WLASCICIEL_OGLOS = [1130375423247790162, 1384107274754199573]
+
+ID_ROLA_ALARM = 1575569761306411100
 
 # --- FUNKCJA POBIERANIA AVATARA ---
 async def get_roblox_avatar(roblox_input):
@@ -507,6 +509,31 @@ async def ban(interaction: discord.Interaction):
             await i_b.guild.get_channel(ID_KANAL_BAN).send(embed=e)
             await i_b.response.send_message("Zbanowano.", ephemeral=True)
     await interaction.response.send_modal(BModal())
+
+# --- KOMENDA /ALARM ---
+@bot.tree.command(name="alarm", description="Wysyła wiadomość DM do wszystkich osób z określoną rolą")
+@app_commands.describe(wiadomosc="Treść wiadomości alarmowej")
+async def alarm(interaction: discord.Interaction, wiadomosc: str):
+    if not interaction.user.guild_permissions.administrator:
+        return await interaction.response.send_message("❌ Ta komenda jest dostępna wyłącznie dla Administratorów.", ephemeral=True)
+
+    await interaction.response.defer(ephemeral=True)
+    
+    rola = interaction.guild.get_role(ID_ROLA_ALARM)
+    if not rola:
+        return await interaction.followup.send("❌ Nie znaleziono określonej roli alarmu na serwerze.", ephemeral=True)
+
+    wyslane = 0
+    for member in rola.members:
+        if member.bot:
+            continue
+        try:
+            await member.send(f"🚨 **NOWA WIADOMOŚĆ ALARMOWA:**\n\n{wiadomosc}")
+            wyslane += 1
+        except:
+            pass
+
+    await interaction.followup.send(f"✅ Pomyślnie wysłano wiadomość do {wyslane} obywateli z rolą {rola.mention}.", ephemeral=True)
 
 @bot.event
 async def on_ready():
